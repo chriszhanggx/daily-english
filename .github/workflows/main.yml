@@ -1,0 +1,34 @@
+- name: Generate data.json using GPT
+  run: |
+    python <<EOF
+    from openai import OpenAI
+    import json
+    from datetime import datetime
+    import os
+
+    client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
+
+    prompt = (
+        "Please give me 3 authentic, native English sentences, each at least 20 words long, "
+        "taken from the style of news media or natural conversation. They should be expressive, idiomatic, and slightly challenging."
+    )
+
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[
+            {"role": "user", "content": prompt}
+        ],
+        temperature=0.9
+    )
+
+    content = response.choices[0].message.content
+    sentences = [s.strip("•- ") for s in content.strip().split('\\n') if s.strip()]
+
+    with open("data.json", "w") as f:
+        json.dump({
+            "date": datetime.now().strftime("%Y-%m-%d"),
+            "sentences": sentences[:3]
+        }, f, indent=2)
+    EOF
+  env:
+    OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
