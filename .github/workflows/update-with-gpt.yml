@@ -1,34 +1,62 @@
-- name: Generate data.json using GPT
-  run: |
-    python <<EOF
-    from openai import OpenAI
-    import json
-    from datetime import datetime
-    import os
+name: GPT-powered daily English updater
 
-    client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
+on:
+  schedule:
+    - cron: '0 0 * * *' # 每天 UTC 零点（北京时间早上 8 点）
+  workflow_dispatch:
 
-    prompt = (
-        "Please give me 3 authentic, native English sentences, each at least 20 words long, "
-        "taken from the style of news media or natural conversation. They should be expressive, idiomatic, and slightly challenging."
-    )
+jobs:
+  update:
+    runs-on: ubuntu-latest
 
-    response = client.chat.completions.create(
-        model="gpt-4o",
-        messages=[
-            {"role": "user", "content": prompt}
-        ],
-        temperature=0.9
-    )
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
 
-    content = response.choices[0].message.content
-    sentences = [s.strip("•- ") for s in content.strip().split('\\n') if s.strip()]
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
 
-    with open("data.json", "w") as f:
-        json.dump({
-            "date": datetime.now().strftime("%Y-%m-%d"),
-            "sentences": sentences[:3]
-        }, f, indent=2)
-    EOF
-  env:
-    OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+    - name: Install dependencies
+      run: pip install openai
+
+    - name: Generate data.json using GPT (new SDK)
+      env:
+        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      run: |
+        python <<EOF
+        import openai
+        import json
+        from datetime import datetime
+
+        client = openai.OpenAI(api_key="${{ secrets.OPENAI_API_KEY }}")
+
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {
+                    "role": "user",
+                    "content": "Give me 3 expressive, idiomatic, native English sentences from news-style or real-life usage, each at least 20 words long."
+                }
+            ],
+            temperature=0.9
+        )
+
+        content = response.choices[0].message.content.strip()
+        sentences = [s.strip("•- ").strip() for s in content.split('\n') if s.strip()]
+
+        with open("data.json", "w") as f:
+            json.dump({
+                "date": datetime.now().strftime("%Y-%m-%d"),
+                "sentences": sentences[:3]
+            }, f, indent=2)
+        EOF
+
+    - name: Commit and push
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        git add data.json
+        git commit -m "auto: update daily English from GPT"
+        git push
