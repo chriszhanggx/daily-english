@@ -21,7 +21,7 @@ jobs:
     - name: Install dependencies
       run: pip install openai
 
-    - name: Generate data.json using GPT
+    - name: Generate data.json using GPT (new SDK)
       env:
         OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       run: |
@@ -30,28 +30,26 @@ jobs:
         import json
         from datetime import datetime
 
-        openai.api_key = "${{ secrets.OPENAI_API_KEY }}"
+        client = openai.OpenAI(api_key="${{ secrets.OPENAI_API_KEY }}")
 
-        prompt = (
-          "Please give me 3 authentic, native English sentences, each at least 20 words long, "
-          "taken from the style of news media or natural conversation. They should be expressive, idiomatic, and slightly challenging."
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {
+                    "role": "user",
+                    "content": "Give me 3 expressive, idiomatic, native English sentences from news-style or real-life usage, each at least 20 words long."
+                }
+            ],
+            temperature=0.9
         )
 
-        response = openai.ChatCompletion.create(
-          model="gpt-4o",  # 可换成 gpt-4 或 gpt-3.5-turbo
-          messages=[
-            {"role": "user", "content": prompt}
-          ],
-          temperature=0.9
-        )
-
-        content = response['choices'][0]['message']['content']
-        sentences = [s.strip("•- ") for s in content.strip().split('\n') if s.strip()]
+        content = response.choices[0].message.content.strip()
+        sentences = [s.strip("•- ").strip() for s in content.split('\n') if s.strip()]
 
         with open("data.json", "w") as f:
             json.dump({
-              "date": datetime.now().strftime("%Y-%m-%d"),
-              "sentences": sentences[:3]
+                "date": datetime.now().strftime("%Y-%m-%d"),
+                "sentences": sentences[:3]
             }, f, indent=2)
         EOF
 
